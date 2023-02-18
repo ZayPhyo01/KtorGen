@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.guru.ktorgen.data.remote.PlaceHolderService
+import com.guru.ktorgen.data.remote.response.PostRequest
 import com.guru.ktorgen.viewmodel.mapper.toPostsUi
 import com.guru.ktorgen.viewmodel.model.PostUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,6 +21,19 @@ class PlaceHolderViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             listOfPosts.addAll(placeHolderService.getPosts().toPostsUi())
+
+            //post posts
+            placeHolderService.postPosts(
+                PostRequest(
+                    userId = "39020934",
+                    "test",
+                    "This is body"
+                )
+            )
         }
+
+
     }
+
+
 }

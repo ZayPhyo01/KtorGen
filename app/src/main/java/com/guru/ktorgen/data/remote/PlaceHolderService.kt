@@ -24,5 +24,5 @@ interface PlaceHolderService {
     @POST(URL.GET_POSTS)
     suspend fun postPosts(
         @Body postRequest: PostRequest
-    ): List<PostResponse>
+    ): PostResponse
 }
