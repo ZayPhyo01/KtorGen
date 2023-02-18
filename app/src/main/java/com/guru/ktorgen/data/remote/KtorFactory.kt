@@ -14,5 +14,6 @@ object KtorFactory {
         install(ContentNegotiation) {
             json()
         }
+
     }
 }

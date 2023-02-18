@@ -3,6 +3,7 @@ package com.guru.ktorgen.di
 import com.guru.ktorgen.data.remote.KtorFactory
 import com.guru.ktorgen.data.remote.PlaceHolderService
 import com.guru.ktorgen.data.remote.PlaceHolderServiceImpl
+
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

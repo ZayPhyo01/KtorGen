@@ -7,3 +7,13 @@ data class PostResponse(
     val title: String,
     val body: String
 )
+
+@kotlinx.serialization.Serializable
+data class PostRequest(
+    val userId: String,
+    val title: String,
+    val body: String
+)
+
+
+
