@@ -31,29 +31,26 @@ data class ClientAnnotation(
 
 
 private fun appendUrlQueryIfExist(valueParam: List<KSValueParameter>): String {
-    return valueParam.filter {
-        it.annotations.first().shortName.asString() == "Query"
-    }.toList().run {
-        if (this.isNotEmpty()) {
-            var parms = ""
-            this.forEach {
-                parms += "parameters.append(${it.annotations.first().arguments.first().value},${
-                    it.name?.asString().toString()
-                })\n"
+    return valueParam
+        .filter { it.annotations.first().shortName.asString() == "Query" }
+        .toList()
+        .run {
+            if (this.isNotEmpty()) {
+                var parms = ""
+                this.forEach {
+                    parms += "parameters.append(${it.annotations.first().arguments.first().value},${
+                        it.name?.asString().toString()
+                    })\n"
+                }
+                "url { $parms }"
+            } else {
+                ""
             }
-            "url { $parms }"
-        } else {
-            ""
         }
-    }
 }
 
 
-private fun KSAnnotation.toHttpMethodName() =
-    if (this.shortName.asString() == "POST") {
-        "Post"
-    } else "Get"
-
+private fun KSAnnotation.toHttpMethodName() = if (shortName.asString() == "POST") "Post" else "Get"
 
 class KtorProcessor(
     private val codeGenerator: CodeGenerator,
@@ -63,96 +60,95 @@ class KtorProcessor(
     override fun process(resolver: Resolver): List<KSAnnotated> {
         val dependencies = Dependencies(false, *resolver.getAllFiles().toList().toTypedArray())
 
-        val symbolAnnotation = resolver.getSymbolsWithAnnotation(
-            Ktor::class.qualifiedName.toString()
-        )
-        val symbolClasses = symbolAnnotation.filterIsInstance(KSClassDeclaration::class.java)
+        val symbolAnnotation =
+            resolver.getSymbolsWithAnnotation(Ktor::class.qualifiedName.toString())
+
+        symbolAnnotation
+            .filterIsInstance(KSClassDeclaration::class.java)
             .filter { it.classKind == ClassKind.INTERFACE }
-        symbolClasses.forEach { classes ->
+            .forEach { classes ->
 
-            val primary = FunSpec.constructorBuilder()
-                .addParameter("client", ClassName("io.ktor.client", "HttpClient"))
-                .build()
+                val primaryConstructor = FunSpec
+                    .constructorBuilder()
+                    .addParameter("client", ClassName("io.ktor.client", "HttpClient"))
+                    .build()
 
-            val propInit = PropertySpec.builder("client", ClassName("io.ktor.client", "HttpClient"))
-                .initializer("client")
-                .addModifiers(KModifier.PRIVATE)
-                .build()
+                val propertySpec = PropertySpec
+                    .builder("client", ClassName("io.ktor.client", "HttpClient"))
+                    .initializer("client")
+                    .addModifiers(KModifier.PRIVATE)
+                    .build()
 
-            FileSpec.builder(
-                packageName = classes.packageName.asString(),
-                fileName = classes.simpleName.asString() + "Impl"
-            ).addImport(
-                "io.ktor.client.request", "request"
-            ).addImport("io.ktor.client.call", "body")
-                .addImport("io.ktor.client.request", "setBody")
-                .addType(
-                    TypeSpec.classBuilder(classes.simpleName.asString() + "Impl")
-                        .addSuperinterface(
-                            classes.toClassName()
-                        )
-                        .primaryConstructor(
-                            primary
-                        ).addProperty(propInit)
-                        .addFunctions(
-                            classes.getDeclaredFunctions()
-                                .map { func ->
-                                    val httpMethod = func.annotations.first().let {
-                                        ClientAnnotation(
-                                            url = it.arguments.first().value.toString(),
-                                            method = ClassName(
-                                                "io.ktor.http",
-                                                "HttpMethod.${it.toHttpMethodName()}"
-                                            )
+                val typeSpec = TypeSpec
+                    .classBuilder(classes.simpleName.asString() + "Impl")
+                    .addSuperinterface(classes.toClassName())
+                    .primaryConstructor(primaryConstructor)
+                    .addProperty(propertySpec)
+                    .addFunctions(
+                        classes
+                            .getDeclaredFunctions()
+                            .map { func ->
+
+                                val httpMethod = func.annotations.first().let {
+                                    ClientAnnotation(
+                                        url = it.arguments.first().value.toString(),
+                                        method = ClassName(
+                                            "io.ktor.http",
+                                            "HttpMethod.${it.toHttpMethodName()}"
                                         )
-                                    }
-                                    FunSpec.builder(func.simpleName.asString())
-                                        .addModifiers(KModifier.OVERRIDE, KModifier.SUSPEND)
-                                        .addParameters(
-                                            func.parameters.map {
-                                                ParameterSpec.builder(
-                                                    name = it.name?.asString().toString(),
-                                                    it.type.resolve().toTypeName()
-                                                )
-                                                    .build()
-                                            }
-                                        )
-                                        .returns(
-                                            func.returnType?.resolve()?.toTypeName()!!
-                                        ).addStatement(
-                                            "val url = %S", httpMethod.url
-                                        ).addStatement("val httpMethod = %L", httpMethod.method)
-                                        .addStatement(
-                                            "return %L",
-                                            "client.request(url) { " +
-                                                    "method = httpMethod\n" +
-                                                    func.parameters.firstOrNull {
-                                                        it.annotations.first().shortName.asString() == "Body"
-                                                    }.run {
+                                    )
+                                }
+
+                                val parameterSpecs = func.parameters.map {
+                                    ParameterSpec.builder(
+                                        name = it.name?.asString().toString(),
+                                        type = it.type.resolve().toTypeName()
+                                    ).build()
+                                }
+
+                                FunSpec.builder(func.simpleName.asString())
+                                    .addModifiers(KModifier.OVERRIDE, KModifier.SUSPEND)
+                                    .addParameters(parameterSpecs)
+                                    .returns(func.returnType?.resolve()?.toTypeName()!!)
+                                    .addStatement("val url = %S", httpMethod.url)
+                                    .addStatement("val httpMethod = %L", httpMethod.method)
+                                    .addStatement(
+                                        "return %L",
+                                        "client.request(url) { " +
+                                                "method = httpMethod\n" +
+                                                func.parameters
+                                                    .firstOrNull { it.annotations.first().shortName.asString() == "Body" }
+                                                    .run {
                                                         if (this != null)
                                                             "setBody(${
                                                                 this.name?.asString().toString()
                                                             })"
                                                         else ""
                                                     } +
-                                                    appendUrlQueryIfExist(func.parameters)
-                                                    + "}.body()"
-                                        )
-                                        .build()
-                                }.toList()
-                        )
-                        .build()
+                                                appendUrlQueryIfExist(func.parameters)
+                                                + "}.body()"
+                                    ).build()
+                            }.toList()
+                    ).build()
 
-                )
-                .build().writeTo(
-                    codeGenerator = codeGenerator,
-                    dependencies = dependencies
-                )
-        }
+                FileSpec
+                    .builder(
+                        packageName = classes.packageName.asString(),
+                        fileName = classes.simpleName.asString() + "Impl"
+                    )
+                    .addImport("io.ktor.client.request", "request")
+                    .addImport("io.ktor.client.call", "body")
+                    .addImport("io.ktor.client.request", "setBody")
+                    .addType(typeSpec)
+                    .build()
+                    .writeTo(
+                        codeGenerator = codeGenerator,
+                        dependencies = dependencies
+                    )
+            }
 
-
-        return symbolAnnotation.filterNot {
-            it.validate()
-        }.toList()
+        return symbolAnnotation
+            .filterNot { it.validate() }
+            .toList()
     }
 }
