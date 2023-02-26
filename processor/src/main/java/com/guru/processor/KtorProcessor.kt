@@ -24,14 +24,14 @@ import com.squareup.kotlinpoet.ksp.toClassName
 import com.squareup.kotlinpoet.ksp.toTypeName
 import com.squareup.kotlinpoet.ksp.writeTo
 
-data class ClientAnnonation(
+data class ClientAnnotation(
     val method: ClassName,
     val url: String
 )
 
 
-private fun appendUrlQueryIfExist(valueParm: List<KSValueParameter>): String {
-    return valueParm.filter {
+private fun appendUrlQueryIfExist(valueParam: List<KSValueParameter>): String {
+    return valueParam.filter {
         it.annotations.first().shortName.asString() == "Query"
     }.toList().run {
         if (this.isNotEmpty()) {
@@ -63,10 +63,10 @@ class KtorProcessor(
     override fun process(resolver: Resolver): List<KSAnnotated> {
         val dependencies = Dependencies(false, *resolver.getAllFiles().toList().toTypedArray())
 
-        val symbolAnnonation = resolver.getSymbolsWithAnnotation(
+        val symbolAnnotation = resolver.getSymbolsWithAnnotation(
             Ktor::class.qualifiedName.toString()
         )
-        val symbolClasses = symbolAnnonation.filterIsInstance(KSClassDeclaration::class.java)
+        val symbolClasses = symbolAnnotation.filterIsInstance(KSClassDeclaration::class.java)
             .filter { it.classKind == ClassKind.INTERFACE }
         symbolClasses.forEach { classes ->
 
@@ -98,7 +98,7 @@ class KtorProcessor(
                             classes.getDeclaredFunctions()
                                 .map { func ->
                                     val httpMethod = func.annotations.first().let {
-                                        ClientAnnonation(
+                                        ClientAnnotation(
                                             url = it.arguments.first().value.toString(),
                                             method = ClassName(
                                                 "io.ktor.http",
@@ -151,7 +151,7 @@ class KtorProcessor(
         }
 
 
-        return symbolAnnonation.filterNot {
+        return symbolAnnotation.filterNot {
             it.validate()
         }.toList()
     }
